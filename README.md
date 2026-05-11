@@ -47,9 +47,6 @@ Boolean trick that returns every article at once:
 http://localhost:8080/article?id=1 OR 1=1
 ```
 
-The "Executed SQL" panel on the article page shows the exact query that was sent,
-making it easy to walk developers through what happened.
-
 ## Try reflected XSS
 
 Normal search:
@@ -80,7 +77,8 @@ to hit.
 
 - SQLi — `ArticleHandler.handle`:
   ```java
-  String sql = "SELECT id, title, body FROM articles WHERE id = " + id;
+  ResultSet rs = s.executeQuery(
+      "SELECT id, title, body FROM articles WHERE id = " + id);
   ```
 - XSS — `SearchHandler.handle`:
   ```java

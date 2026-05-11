@@ -143,14 +143,14 @@ public class Main {
             Map<String, String> q = parseQuery(ex.getRequestURI().getRawQuery());
             String id = q.getOrDefault("id", "");
 
-            // !!! VULNERABLE: user input concatenated directly into SQL. !!!
-            // Demonstration only. Real code MUST use PreparedStatement with parameters.
-            String sql = "SELECT id, title, body FROM articles WHERE id = " + id;
-
             String body = "";
-            try (Connection c = connect();
-                 Statement s = c.createStatement();
-                 ResultSet rs = s.executeQuery(sql)) {
+            try {
+                Connection c = connect();
+                Statement s = c.createStatement();
+
+                // !!! VULNERABLE: user input concatenated directly into SQL. !!!
+                // Demonstration only. Real code MUST use PreparedStatement with parameters.
+                ResultSet rs = s.executeQuery("SELECT id, title, body FROM articles WHERE id = " + id);
 
                 boolean any = false;
                 while (rs.next()) {
@@ -174,8 +174,6 @@ public class Main {
                     + PAGE_STYLE
                     + "</head><body>"
                     + "<p><a href='/'>&larr; back</a></p>"
-                    + "<h3>Executed SQL</h3>"
-                    + "<pre>" + escape(sql) + "</pre>"
                     + body
                     + "</body></html>";
 
