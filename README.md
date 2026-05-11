@@ -1,6 +1,7 @@
-# SQL Injection Demo (Java)
+# Web Vulnerability Demo (Java)
 
-A minimal Java web app to demonstrate the risk of SQL injection.
+A minimal Java web app to demonstrate two common web vulnerabilities:
+**SQL injection** and **reflected XSS**.
 **Educational use only — the code is intentionally vulnerable. Never deploy this.**
 
 ## Stack
@@ -20,11 +21,13 @@ Then open http://localhost:8080/
 
 ## Endpoints
 
-- `GET /` — list of articles
+- `GET /` — list of articles + search box
 - `GET /article?id=<ID>` — fetches a single article. The `id` value is concatenated
-  straight into the SQL string. This is the vulnerable code path.
+  straight into the SQL string. **Vulnerable: SQL injection.**
+- `GET /search?q=<Q>` — searches articles by title. The DB query is parameterised,
+  but `q` is written back into the HTML without escaping. **Vulnerable: reflected XSS.**
 
-## Try the injection
+## Try SQL injection
 
 Normal request:
 
@@ -47,17 +50,47 @@ http://localhost:8080/article?id=1 OR 1=1
 The "Executed SQL" panel on the article page shows the exact query that was sent,
 making it easy to walk developers through what happened.
 
-## Where the bug lives
+## Try reflected XSS
 
-`src/main/java/com/example/sqli/Main.java`, inside `ArticleHandler.handle`:
+Normal search:
 
-```java
-String sql = "SELECT id, title, body FROM articles WHERE id = " + id;
+```
+http://localhost:8080/search?q=hello
 ```
 
-## The fix
+Script-tag payload (pops an alert):
 
-Use `PreparedStatement` with bound parameters:
+```
+http://localhost:8080/search?q=<script>alert('XSS')</script>
+```
+
+`onerror` image payload (works even when `<script>` is stripped by a naive filter):
+
+```
+http://localhost:8080/search?q=<img src=x onerror=alert('XSS-img')>
+```
+
+The query is reflected into the page in two places — the "You searched for" line
+and the `value` attribute of the search box — so payloads have multiple sinks
+to hit.
+
+## Where the bugs live
+
+`src/main/java/com/example/sqli/Main.java`:
+
+- SQLi — `ArticleHandler.handle`:
+  ```java
+  String sql = "SELECT id, title, body FROM articles WHERE id = " + id;
+  ```
+- XSS — `SearchHandler.handle`:
+  ```java
+  "<p>You searched for: <b>" + q + "</b></p>"
+  "<input type='text' name='q' value='" + q + "'>"
+  ```
+
+## The fixes
+
+**SQLi** — use `PreparedStatement` with bound parameters:
 
 ```java
 String sql = "SELECT id, title, body FROM articles WHERE id = ?";
@@ -71,3 +104,14 @@ try (PreparedStatement ps = c.prepareStatement(sql)) {
 
 The bound parameter is sent separately from the SQL text, so the database never
 treats user input as code — only as data.
+
+**XSS** — HTML-escape any user-controlled value before it goes into the page:
+
+```java
+"<p>You searched for: <b>" + escape(q) + "</b></p>"
+"<input type='text' name='q' value='" + escape(q) + "'>"
+```
+
+(The `escape` helper in `Main.java` shows the minimal set of replacements:
+`&`, `<`, `>`, `"`, `'`.) In a real codebase, use your template engine's
+auto-escaping (Thymeleaf, JSP `c:out`, etc.) rather than hand-rolling it.
