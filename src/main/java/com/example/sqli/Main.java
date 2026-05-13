@@ -143,28 +143,9 @@ public class Main {
             Map<String, String> q = parseQuery(ex.getRequestURI().getRawQuery());
             String id = q.getOrDefault("id", "");
 
-            String body = "";
+            String body;
             try {
-                Connection c = connect();
-                Statement s = c.createStatement();
-
-                // !!! VULNERABLE: user input concatenated directly into SQL. !!!
-                // Demonstration only. Real code MUST use PreparedStatement with parameters.
-                ResultSet rs = s.executeQuery("SELECT id, title, body FROM articles WHERE id = " + id);
-
-                boolean any = false;
-                while (rs.next()) {
-                    any = true;
-                    body = body
-                            + "<article>"
-                            + "<h1>" + escape(rs.getString(2)) + "</h1>"
-                            + "<p>" + escape(rs.getString(3)) + "</p>"
-                            + "<p><small>id = " + escape(rs.getString(1)) + "</small></p>"
-                            + "</article><hr>";
-                }
-                if (!any) {
-                    body = "<p>No article found.</p>";
-                }
+                body = fetchArticleBody(id);
             } catch (SQLException e) {
                 body = "<p class='err'><strong>SQL error:</strong> " + escape(e.getMessage()) + "</p>";
             }
@@ -226,6 +207,31 @@ public class Main {
 
             send(ex, 200, html);
         }
+    }
+
+    private static String fetchArticleBody(String id) throws SQLException {
+        Connection c = connect();
+        Statement s = c.createStatement();
+
+        // !!! VULNERABLE: user input concatenated directly into SQL. !!!
+        // Demonstration only. Real code MUST use PreparedStatement with parameters.
+        ResultSet rs = s.executeQuery("SELECT id, title, body FROM articles WHERE id = " + id);
+
+        String body = "";
+        boolean any = false;
+        while (rs.next()) {
+            any = true;
+            body = body
+                    + "<article>"
+                    + "<h1>" + escape(rs.getString(2)) + "</h1>"
+                    + "<p>" + escape(rs.getString(3)) + "</p>"
+                    + "<p><small>id = " + escape(rs.getString(1)) + "</small></p>"
+                    + "</article><hr>";
+        }
+        if (!any) {
+            body = "<p>No article found.</p>";
+        }
+        return body;
     }
 
     private static Map<String, String> parseQuery(String raw) {
